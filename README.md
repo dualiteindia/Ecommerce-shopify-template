@@ -1,1 +1,1 @@
-# shopify-ecommerce-template
+# Ecommerce-shopify-template

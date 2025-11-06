@@ -1,0 +1,16 @@
+# Ignore artifacts:
+build
+dist
+.next
+.vercel
+node_modules
+
+# Ignore dotfiles:
+.env
+.env.local
+.env.production
+.env.development
+
+# Ignore specific files:
+package-lock.json
+yarn.lock
