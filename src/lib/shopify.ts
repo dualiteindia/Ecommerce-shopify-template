@@ -1,4 +1,4 @@
-import { generateCodeVerifier, generateCodeChallenge } from './pkce';
+import { generateCodeVerifier, generateCodeChallenge, generateState, generateNonce } from './pkce';
 
 const storefrontAccessToken = import.meta.env
   .VITE_PUBLIC_SHOPIFY_STOREFRONT_TOKEN
@@ -87,7 +87,7 @@ async function customerAccount(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: accessToken,
+        Authorization: accessToken, // Corrected: No "Bearer" prefix
       },
       body: JSON.stringify({ query, variables }),
     })
@@ -323,28 +323,37 @@ export async function getAuthorizationUrl() {
       `https://${storeDomain}/.well-known/openid-configuration`
     )
     const authConfig = await discoveryResponse.json()
+
+		console.log('authconfig', authConfig);
     const authorizationEndpoint = authConfig.authorization_endpoint
 
     const verifier = generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
+    const state = generateState();
+    const nonce = generateNonce();
+
+		console.log('verifier', verifier, 'challenge', challenge, 'state', state, 'nonce', nonce);
+
     sessionStorage.setItem('code-verifier', verifier);
+    sessionStorage.setItem('state', state);
+    sessionStorage.setItem('nonce', nonce);
 
     const authorizationRequestUrl = new URL(authorizationEndpoint)
     authorizationRequestUrl.searchParams.append(
       'scope',
-      'openid email https://api.shopify.com/auth/shop.customers.read https://api.shopify.com/auth/shop.customers.write'
+      'openid email customer-account-api:full'
     )
     authorizationRequestUrl.searchParams.append('client_id', clientId)
     authorizationRequestUrl.searchParams.append('response_type', 'code')
     authorizationRequestUrl.searchParams.append('redirect_uri', redirectUri)
-    // TODO: Replace with a random, unguessable string for CSRF protection
-    authorizationRequestUrl.searchParams.append('state', '12345')
-    // TODO: Replace with a random, unguessable string for replay attack protection
-    authorizationRequestUrl.searchParams.append('nonce', '67890')
+    authorizationRequestUrl.searchParams.append('state', state)
+    authorizationRequestUrl.searchParams.append('nonce', nonce)
     
     // PKCE parameters
     authorizationRequestUrl.searchParams.append('code_challenge', challenge);
     authorizationRequestUrl.searchParams.append('code_challenge_method', 'S256');
+
+		console.log('authorizationRequestUrl', authorizationRequestUrl)
 
     return authorizationRequestUrl.toString()
   } catch (error) {

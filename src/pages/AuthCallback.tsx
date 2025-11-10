@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { getCustomer } from '@/lib/shopify'
+import { decodeJwt } from '@/lib/pkce'
 
 const AuthCallback = () => {
   const [searchParams] = useSearchParams()
@@ -11,14 +12,22 @@ const AuthCallback = () => {
 
   useEffect(() => {
     const code = searchParams.get('code')
-    const state = searchParams.get('state')
+    const returnedState = searchParams.get('state')
+    const savedState = sessionStorage.getItem('state');
 
-    if (code && state) {
-      // In a real app, you should validate the state parameter here to prevent CSRF attacks
+    // 1. Validate state to prevent CSRF
+    if (!returnedState || returnedState !== savedState) {
+      setError('Invalid state parameter. Your session may have been compromised. Please try again.');
+      return;
+    }
+
+    if (code) {
       const exchangeToken = async () => {
         try {
           const codeVerifier = sessionStorage.getItem('code-verifier');
-          if (!codeVerifier) {
+          const savedNonce = sessionStorage.getItem('nonce');
+
+          if (!codeVerifier || !savedNonce) {
             setError('Your session has expired. Please try logging in again.');
             return;
           }
@@ -48,12 +57,26 @@ const AuthCallback = () => {
           })
 
           const data = await response.json()
-          sessionStorage.removeItem('code-verifier'); // Clean up verifier
 
-          if (data.access_token) {
-            const customerData = await getCustomer(data.access_token)
+          // Clean up session storage
+          sessionStorage.removeItem('code-verifier');
+          sessionStorage.removeItem('state');
+          sessionStorage.removeItem('nonce');
+
+          if (data.access_token && data.id_token) {
+            // 2. Validate nonce to prevent replay attacks
+            const { payload } = decodeJwt(data.id_token);
+            if (payload.nonce !== savedNonce) {
+              setError('Invalid nonce. Your session may have been compromised. Please try again.');
+              return;
+            }
+
+            // Add the required 'shcat_' prefix
+            const formattedToken = `${data.access_token}`;
+
+            const customerData = await getCustomer(formattedToken)
             if (customerData && customerData.id) {
-              login(data.access_token, customerData.id)
+              login(formattedToken, customerData.id) // Store the formatted token
               navigate('/account/profile')
             } else {
               setError('Could not retrieve your customer details after login.');
@@ -69,6 +92,13 @@ const AuthCallback = () => {
       }
 
       exchangeToken()
+    } else {
+      // Handle cases where code is not present
+      const errorParam = searchParams.get('error');
+      const errorDescription = searchParams.get('error_description');
+      if (errorParam) {
+        setError(`An error occurred: ${errorDescription || errorParam}`);
+      }
     }
   }, [searchParams, navigate, login])
 
