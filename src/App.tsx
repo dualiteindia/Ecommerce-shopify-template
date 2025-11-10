@@ -16,11 +16,28 @@ import OrderDetailPage from './pages/account/OrderDetailPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { EnvWarning } from './components/global/EnvWarning'
 
+const isShopifyConfigured =
+  import.meta.env.VITE_PUBLIC_SHOPIFY_STORE_DOMAIN &&
+  import.meta.env.VITE_PUBLIC_SHOPIFY_STOREFRONT_TOKEN &&
+  import.meta.env.VITE_PUBLIC_SHOPIFY_CUSTOMER_ACCOUNT_API_CLIENT_ID &&
+  import.meta.env.VITE_PUBLIC_REDIRECT_URI &&
+  import.meta.env.VITE_PUBLIC_SHOPIFY_STORE_DOMAIN !== 'YOUR_API_KEY' &&
+  import.meta.env.VITE_PUBLIC_SHOPIFY_STOREFRONT_TOKEN !== 'YOUR_API_KEY' &&
+  import.meta.env.VITE_PUBLIC_SHOPIFY_CUSTOMER_ACCOUNT_API_CLIENT_ID !== 'YOUR_API_KEY' &&
+  import.meta.env.VITE_PUBLIC_REDIRECT_URI !== 'YOUR_API_KEY'
+
 function App() {
+  if (!isShopifyConfigured) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background p-4">
+        <EnvWarning />
+      </div>
+    )
+  }
+
   return (
     <Router>
       <Header />
-      <EnvWarning />
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -33,7 +50,7 @@ function App() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/account" element={<AccountLayout />}>
-            <Route path="profile" element={<ProfilePage />} />
+              <Route path="profile" element={<ProfilePage />} />
               <Route path="orders" element={<OrdersPage />} />
               <Route path="orders/:id" element={<OrderDetailPage />} />
               <Route path="addresses" element={<AddressesPage />} />
